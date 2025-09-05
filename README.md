@@ -158,4 +158,3 @@ If you encounter any issues or have feature requests, please [open an issue](htt
 - Automatic note creation
 - Progress tracking
 - Ribbon icon integration
-```
