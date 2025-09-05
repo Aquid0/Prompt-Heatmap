@@ -32,7 +32,6 @@ An Obsidian plugin that randomly selects writing prompts from your collection an
 Create a file called `Prompts.md` in a `Prompts` folder in your vault root:
 
 ```markdown
-```
 Prompts/
 └── Prompts.md
 ```
@@ -160,5 +159,3 @@ If you encounter any issues or have feature requests, please [open an issue](htt
 - Progress tracking
 - Ribbon icon integration
 ```
-
-Thi
