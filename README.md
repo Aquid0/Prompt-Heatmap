@@ -49,6 +49,34 @@ To visualize your writing progress:
 2. Configure it to track your destination folder
 3. Set the frontmatter key to match your "Prompts Answered Frontmatter" setting
 
+#### Sample Heatmap
+```dataviewjs
+const trackerData = {
+    entries: [],
+    heatmapTitle: "Prompts Answered",
+    intensityScaleStart: 0,
+    intensityScaleEnd: 5,
+};
+
+const PATH = "Answers";
+const PARAM = "promptsAnswered";
+
+for (let page of dv.pages(`"${PATH}"`).where(p => typeof p[PARAM] === "number")) {
+    // Convert DD-MM-YYYY filename into YYYY-MM-DD
+    const m = window.moment(page.file.name, ["DD-MM-YYYY","D-M-YYYY"], true);
+    if (!m.isValid()) continue;
+
+    trackerData.entries.push({
+        date: m.format("YYYY-MM-DD"),   // must be ISO
+        filePath: page.file.path,       // so clicking works
+        intensity: page[PARAM],
+        content: await dv.span(`[](${page.file.name})`)
+    });
+}
+
+renderHeatmapTracker(this.container, trackerData);
+```
+
 ## Usage
 
 ### Getting a Random Prompt
