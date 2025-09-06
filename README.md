@@ -51,10 +51,10 @@ Add your prompts to `Prompts.md` using bullet points:
 
 1. Click the **notepad-text icon** in the left ribbon
 2. The plugin will:
-   - Select a random unchecked prompt
-   - Mark it as completed (`- [x]`) in your Prompts.md file
-   - Create a new note with the prompt
-   - Open the note for you to start writing
+    - Select a random unchecked prompt
+    - Mark it as completed (`- [x]`) in your Prompts.md file
+    - Create a new note with the prompt
+    - Open the note for you to start writing
 
 ## How It Works
 
@@ -87,7 +87,7 @@ Each generated note includes:
 
 ---
 
-*Generated on 15/01/2024*
+_Generated on 15/01/2024_
 ```
 
 ## Development
@@ -122,14 +122,17 @@ src/
 ## Troubleshooting
 
 ### "Prompts.md file not found"
+
 - Make sure you have a `Prompts/Prompts.md` file in your vault root
 - Check the file path is exactly `Prompts/Prompts.md`
 
 ### "No unchecked prompts found"
+
 - All your prompts are marked as completed (`- [x]`)
 - Add new prompts or uncheck some by changing `- [x]` back to `- `
 
 ### Plugin not working
+
 - Make sure the plugin is enabled in **Settings → Community plugins**
 - Check the console (Ctrl+Shift+I) for error messages
 - Try reloading the plugin
@@ -153,6 +156,7 @@ If you encounter any issues or have feature requests, please [open an issue](htt
 ## Changelog
 
 ### Version 1.0.0
+
 - Initial release
 - Random prompt selection
 - Automatic note creation

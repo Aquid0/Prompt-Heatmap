@@ -1,14 +1,28 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import {
+	App,
+	Notice,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	TFile,
+	TFolder,
+} from "obsidian";
 
 // Remember to rename these classes and interfaces!
 
 interface MyPluginSettings {
-	mySetting: string;
+	promptsPath: string;
+	dateFormat: string;
+	destinationPath: string;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+	promptsPath: "Prompts/Prompts.md",
+	dateFormat: "en-GB",
+	destinationPath: "Answers/",
+};
+
+const VIEW_TYPE = "prompt-heatmap-view";
 
 export default class PromptHeatmapPlugin extends Plugin {
 	settings: MyPluginSettings;
@@ -16,133 +30,234 @@ export default class PromptHeatmapPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		this.addRibbonIcon('notepad-text', 'Get Random Prompt', () => {
-			this.getRandomPrompt();
-		})
+		this.addRibbonIcon("notepad-text", "Get Random Prompt", async () => {
+			const content = await this.getPromptsFileContent();
+			if (!content) {
+				new Notice("No content found in Prompts.md file!");
+				return;
+			}
+			await this.parsePromptsFileContent(content);
+		});
 
 		this.addCommand({
-			id: 'get-random-prompt',
-			name: 'Get Random Prompt',
-			callback: () => {
-				this.getRandomPrompt();
-			}
-		})
-
+			id: "get-random-prompt",
+			name: "Get Random Prompt",
+			callback: async () => {
+				const content = await this.getPromptsFileContent();
+				if (!content) {
+					new Notice("No content found in Prompts.md file!");
+					return;
+				}
+				await this.parsePromptsFileContent(content);
+			},
+		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		// this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-		// 	console.log('click', evt);
-		// });
-
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		this.registerInterval(
+			window.setInterval(() => console.log("setInterval"), 5 * 60 * 1000),
+		);
 	}
 
-	onunload() {
-
-	}
+	onunload() {}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData(),
+		);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
 
-	async getRandomPrompt() {
+	async getPromptsFileContent() {
 		try {
-			// Create a new note with the prompt
-			const timestamp = new Date().toLocaleDateString('en-GB').replace(/\//g, '-'); // DD-MM-YYYY format
-			const fileName = `Prompt - ${timestamp}.md`;
+			const cleanPath = this.settings.destinationPath.replace(/\/$/, "");
+			const destinationFolder =
+				this.app.vault.getAbstractFileByPath(cleanPath);
+			const promptsFile = this.app.vault.getAbstractFileByPath(
+				this.settings.promptsPath,
+			);
 
-			// Check if the prompt note already exists
-			if (this.app.vault.getAbstractFileByPath(fileName)) {
-				new Notice('Prompt note already exists for today!');
-				await this.app.workspace.getLeaf().openFile(this.app.vault.getAbstractFileByPath(fileName) as any);
-				return;
+			if (!destinationFolder) {
+				new Notice("Destination folder not found! Creating it...");
+				await this.app.vault.createFolder(cleanPath);
 			}
 
-			// Read the Prompts.md file from Writing/Prompts folder
-			const promptsFile = this.app.vault.getAbstractFileByPath('Prompts/Prompts.md');
-			
 			if (!promptsFile) {
-				new Notice('Prompts.md file not found in Writing/Prompts folder');
+				new Notice(
+					"Prompts.md file not found in " + this.settings.promptsPath,
+				);
 				return;
 			}
 
-			// Read the file content
+			const destinationFolderIsNotFolder = !(
+				destinationFolder instanceof TFolder
+			);
+			if (destinationFolderIsNotFolder) {
+				new Notice("Destination folder is not a folder!");
+				return;
+			}
+
+			const promptsFileIsNotFile = !(promptsFile instanceof TFile);
+			if (promptsFileIsNotFile) {
+				new Notice("Prompts.md file is not a file!");
+				return;
+			}
+
 			const content = await this.app.vault.read(promptsFile as any);
-			
-			// Parse lines and find unchecked prompts (lines that start with "- " but not "- [x]")
-			const lineIndices = content.split('\n').map((line, index) => ({line, index}));
-			const uncheckedPrompts = lineIndices.filter(line => {
-				const trimmed = line.line.trim();
-				return !trimmed.startsWith('- [x]');
-			});
+			return content;
+		} catch (error) {
+			console.error("Error getting random prompt:", error);
+			new Notice(
+				"Error getting random prompt. Check console for details.",
+			);
+			return;
+		}
+	}
 
-			if (uncheckedPrompts.length === 0) {
-				new Notice('No unchecked prompts found!');
-				return;
-			}
+	async parsePromptsFileContent(content: string) {
+		if (!content) {
+			new Notice("No content found in Prompts.md file!");
+			return;
+		}
 
-			// Select a random unchecked prompt
-			const randomIndex = Math.floor(Math.random() * uncheckedPrompts.length);
-			lineIndices[randomIndex] = {line: uncheckedPrompts[randomIndex].line.replace('- [ ]', '- [x]'), index: randomIndex}; // Mark the prompt as checked
-			
-			// Mark prompt as checked
-			const updatedContent = lineIndices.map(line => line.line).join('\n'); 
-			await this.app.vault.modify(promptsFile as any, updatedContent); 
+		const uncheckedPrompt = await this.getUncheckedPrompt(content);
+		const timestamp = new Date()
+			.toLocaleDateString(this.settings.dateFormat)
+			.replace(/\//g, "-");
+		const fileName = `${timestamp}.md`;
+		const fileNameExists = this.app.vault.getAbstractFileByPath(
+			this.settings.destinationPath + fileName,
+		);
 
-			const selectedPrompt = uncheckedPrompts[randomIndex].line.replace('- [ ]', '').trim();
-			
-			// Create the note content
-			const noteContent = `# Writing Prompt
+		if (fileNameExists) {
+			// Open the existing prompt note
+			await this.app.workspace.getLeaf().openFile(fileNameExists as any);
 
-${"**" + selectedPrompt + "**"}
+			// TODO: This is so inefficient but I'm too lazy to fix it
+			const existingContent = await this.app.vault.read(
+				fileNameExists as any,
+			);
+			const existingContentLines = existingContent.split("\n");
+			const promptsAnsweredIndex = existingContentLines.findIndex(
+				(line) => line.trim().startsWith("promptsAnswered:"),
+			);
+			const promptsAnswered = existingContentLines[promptsAnsweredIndex]
+				.trim()
+				.split(":")[1]
+				.trim();
+			const newPromptsAnswered = parseInt(promptsAnswered) + 1;
+			existingContentLines[promptsAnsweredIndex] =
+				`promptsAnswered: ${newPromptsAnswered}`;
 
----
+			const contentToAdd = `	
+***\n
+
+${uncheckedPrompt}
+
+***\n
 
 
-
-*Generated on ${new Date().toLocaleDateString('en-GB')}*
 `;
 
-			// Create the new file
-			await this.app.vault.create(fileName, noteContent);
-			
+			const newContent =
+				existingContentLines.join("\n") + "\n" + contentToAdd;
+			await this.app.vault.modify(fileNameExists as any, newContent);
+
+			// Increment promptsAnswered count
+			new Notice(
+				"Prompt note already exists for today! Adding new prompt...",
+			);
+			return;
+		} else {
+			// Create new prompt note
+			const uncheckedPrompt = await this.getUncheckedPrompt(content);
+
+			if (!uncheckedPrompt) {
+				new Notice("No unchecked prompts available!");
+				return;
+			}
+
+			// Create the note content
+			const noteContent = `---
+promptsAnswered: 1
+---
+
+# Writing Prompt
+
+${uncheckedPrompt}
+
+***
+
+`;
+
+			// Create the new file in the destination folder
+			const cleanPath = this.settings.destinationPath.replace(/\/$/, "");
+			const fullPath = `${cleanPath}/${fileName}`;
+
+			await this.app.vault.create(fullPath, noteContent);
+
 			// Open the new note
-			const newFile = this.app.vault.getAbstractFileByPath(fileName);
+			const newFile = this.app.vault.getAbstractFileByPath(fullPath);
 			if (newFile) {
 				await this.app.workspace.getLeaf().openFile(newFile as any);
 			}
 
 			new Notice(`Created new prompt note: ${fileName}`);
-
-		} catch (error) {
-			console.error('Error getting random prompt:', error);
-			new Notice('Error getting random prompt. Check console for details.');
 		}
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+	async getUncheckedPrompt(content: string) {
+		if (!content) {
+			new Notice("No content found in Prompts.md file!");
+			return;
+		}
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+		const promptIndices = content
+			.split("\n")
+			.map((line, index) => ({ line, index }));
+		const uncheckedPrompts = promptIndices.filter((prompt) =>
+			prompt.line.trim().startsWith("- [ ]"),
+		);
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+		if (uncheckedPrompts.length === 0) {
+			new Notice("No unchecked prompts found!");
+			return;
+		}
+
+		const randomIndex = Math.floor(Math.random() * uncheckedPrompts.length);
+
+		// Mark the prompt as checked
+		promptIndices[randomIndex] = {
+			...uncheckedPrompts[randomIndex],
+			line: uncheckedPrompts[randomIndex].line.replace("- [ ]", "- [x]"),
+		};
+		const updatedContent = promptIndices
+			.map((prompt) => prompt.line)
+			.join("\n");
+
+		// Get the file object first, then modify it
+		const promptsFile = this.app.vault.getAbstractFileByPath(
+			this.settings.promptsPath,
+		);
+		if (promptsFile && promptsFile instanceof TFile) {
+			await this.app.vault.modify(promptsFile, updatedContent);
+		} else {
+			new Notice("Could not find prompts file to update!");
+			return;
+		}
+
+		const randomPrompt = uncheckedPrompts[randomIndex].line.replace(
+			"- [ ]",
+			"",
+		);
+		return randomPrompt;
 	}
 }
 
@@ -155,19 +270,47 @@ class SampleSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName("Prompts Path")
+			.setDesc("The path to your prompts file")
+			.addText((text) =>
+				text
+					.setPlaceholder("Enter your prompts path")
+					.setValue(this.plugin.settings.promptsPath)
+					.onChange(async (value) => {
+						this.plugin.settings.promptsPath = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Date Format")
+			.setDesc("The date format to use for the generated prompt note")
+			.addText((text) =>
+				text
+					.setPlaceholder("Enter your date format")
+					.setValue(this.plugin.settings.dateFormat)
+					.onChange(async (value) => {
+						this.plugin.settings.dateFormat = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Destination Path")
+			.setDesc("The path to the destination folder")
+			.addText((text) =>
+				text
+					.setPlaceholder("Enter your destination path")
+					.setValue(this.plugin.settings.destinationPath)
+					.onChange(async (value) => {
+						this.plugin.settings.destinationPath = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 }
