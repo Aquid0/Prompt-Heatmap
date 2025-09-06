@@ -1,3 +1,10 @@
+/*
+for refactoring
+- Look at parsePromptsFileContent 
+- Look at getUncheckedPrompt
+*/
+
+
 import {
 	App,
 	Notice,
@@ -6,14 +13,15 @@ import {
 	Setting,
 	TFile,
 	TFolder,
+	normalizePath, // Useful for normalising paths with odd slashes/spaces
 } from "obsidian";
 
 // Remember to rename these classes and interfaces!
 
 interface MyPluginSettings {
-	promptsPath: string;
-	dateFormat: string;
-	destinationPath: string;
+	promptsPath: string; // The path to your prompts file
+	dateFormat: string; // The date format to use for the generated prompt note
+	destinationPath: string; // The path to the destination folder
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
@@ -22,48 +30,32 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 	destinationPath: "Answers/",
 };
 
-const VIEW_TYPE = "prompt-heatmap-view";
-
 export default class PromptHeatmapPlugin extends Plugin {
 	settings: MyPluginSettings;
 
-	async onload() {
+	async onload(): Promise<void> {
 		await this.loadSettings();
 
-		this.addRibbonIcon("notepad-text", "Get Random Prompt", async () => {
-			const content = await this.getPromptsFileContent();
-			if (!content) {
-				new Notice("No content found in Prompts.md file!");
-				return;
-			}
-			await this.parsePromptsFileContent(content);
-		});
-
-		this.addCommand({
-			id: "get-random-prompt",
-			name: "Get Random Prompt",
-			callback: async () => {
+		const run = async () => {
+			try {
 				const content = await this.getPromptsFileContent();
-				if (!content) {
-					new Notice("No content found in Prompts.md file!");
-					return;
-				}
 				await this.parsePromptsFileContent(content);
-			},
-		});
+			} catch (error) {
+				console.error(error);
+				const msg =
+					error instanceof Error ? error.message : "Unknown error";
+				new Notice(`Error: ${msg}`);
+			}
+		};
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log("setInterval"), 5 * 60 * 1000),
-		);
+		this.addRibbonIcon("notepad-text", "Get Random Prompt", run);
+		this.addCommand({ id: "get-random-prompt", name: "Get Random Prompt", callback: run });
+		this.addSettingTab(new PromptSettingTab(this.app, this));
 	}
 
-	onunload() {}
+	onunload(): void {}
 
-	async loadSettings() {
+	async loadSettings(): Promise<void> {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
@@ -71,54 +63,40 @@ export default class PromptHeatmapPlugin extends Plugin {
 		);
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
 
-	async getPromptsFileContent() {
-		try {
-			const cleanPath = this.settings.destinationPath.replace(/\/$/, "");
-			const destinationFolder =
-				this.app.vault.getAbstractFileByPath(cleanPath);
-			const promptsFile = this.app.vault.getAbstractFileByPath(
-				this.settings.promptsPath,
-			);
+	private async getPromptsFileContent(): Promise<string> {
+		const cleanPath = normalizePath(
+			this.settings.destinationPath.replace(/\/$/, ""),
+		);
 
-			if (!destinationFolder) {
-				new Notice("Destination folder not found! Creating it...");
-				await this.app.vault.createFolder(cleanPath);
-			}
-
-			if (!promptsFile) {
-				new Notice(
-					"Prompts.md file not found in " + this.settings.promptsPath,
-				);
-				return;
-			}
-
-			const destinationFolderIsNotFolder = !(
-				destinationFolder instanceof TFolder
-			);
-			if (destinationFolderIsNotFolder) {
-				new Notice("Destination folder is not a folder!");
-				return;
-			}
-
-			const promptsFileIsNotFile = !(promptsFile instanceof TFile);
-			if (promptsFileIsNotFile) {
-				new Notice("Prompts.md file is not a file!");
-				return;
-			}
-
-			const content = await this.app.vault.read(promptsFile as any);
-			return content;
-		} catch (error) {
-			console.error("Error getting random prompt:", error);
-			new Notice(
-				"Error getting random prompt. Check console for details.",
-			);
-			return;
+		// Ensure destination folder exists
+		let destination = this.app.vault.getAbstractFileByPath(cleanPath);
+		if (!destination) {
+			await this.app.vault.createFolder(cleanPath);
+			destination = this.app.vault.getAbstractFileByPath(cleanPath);
 		}
+
+		if (!(destination instanceof TFolder)) {
+			throw new Error(`${cleanPath} is not a folder!`);
+		}
+
+		// Ensure prompts file exists and is a file
+		const promptsFile = this.app.vault.getAbstractFileByPath(
+			this.settings.promptsPath,
+		);
+		if (!(promptsFile instanceof TFile)) {
+			throw new Error(`${this.settings.promptsPath} is not a file!`);
+		}
+
+		const content = await this.app.vault.read(promptsFile);
+		if (!content.trim()) {
+			throw new Error(`${this.settings.promptsPath} is empty!`);
+		}
+
+		return content;
 	}
 
 	async parsePromptsFileContent(content: string) {
@@ -132,17 +110,19 @@ export default class PromptHeatmapPlugin extends Plugin {
 			.toLocaleDateString(this.settings.dateFormat)
 			.replace(/\//g, "-");
 		const fileName = `${timestamp}.md`;
-		const fileNameExists = this.app.vault.getAbstractFileByPath(
-			this.settings.destinationPath + fileName,
-		);
+		const cleanPath = this.settings.destinationPath.replace(/\/$/, "");
+		const fullPath = `${cleanPath}/${fileName}`;
+		const fileNameExists = this.app.vault.getAbstractFileByPath(fullPath);
 
 		if (fileNameExists) {
 			// Open the existing prompt note
-			await this.app.workspace.getLeaf().openFile(fileNameExists as any);
+			await this.app.workspace
+				.getLeaf()
+				.openFile(fileNameExists as TFile);
 
 			// TODO: This is so inefficient but I'm too lazy to fix it
 			const existingContent = await this.app.vault.read(
-				fileNameExists as any,
+				fileNameExists as TFile,
 			);
 			const existingContentLines = existingContent.split("\n");
 			const promptsAnsweredIndex = existingContentLines.findIndex(
@@ -168,7 +148,7 @@ ${uncheckedPrompt}
 
 			const newContent =
 				existingContentLines.join("\n") + "\n" + contentToAdd;
-			await this.app.vault.modify(fileNameExists as any, newContent);
+			await this.app.vault.modify(fileNameExists as TFile, newContent);
 
 			// Increment promptsAnswered count
 			new Notice(
@@ -177,8 +157,6 @@ ${uncheckedPrompt}
 			return;
 		} else {
 			// Create new prompt note
-			const uncheckedPrompt = await this.getUncheckedPrompt(content);
-
 			if (!uncheckedPrompt) {
 				new Notice("No unchecked prompts available!");
 				return;
@@ -206,7 +184,7 @@ ${uncheckedPrompt}
 			// Open the new note
 			const newFile = this.app.vault.getAbstractFileByPath(fullPath);
 			if (newFile) {
-				await this.app.workspace.getLeaf().openFile(newFile as any);
+				await this.app.workspace.getLeaf().openFile(newFile as TFile);
 			}
 
 			new Notice(`Created new prompt note: ${fileName}`);
@@ -234,9 +212,10 @@ ${uncheckedPrompt}
 		const randomIndex = Math.floor(Math.random() * uncheckedPrompts.length);
 
 		// Mark the prompt as checked
+		const selectedPrompt = promptIndices[randomIndex];
 		promptIndices[randomIndex] = {
-			...uncheckedPrompts[randomIndex],
-			line: uncheckedPrompts[randomIndex].line.replace("- [ ]", "- [x]"),
+			...promptIndices[randomIndex],
+			line: promptIndices[randomIndex].line.replace("- [ ]", "- [x]"),
 		};
 		const updatedContent = promptIndices
 			.map((prompt) => prompt.line)
@@ -247,7 +226,7 @@ ${uncheckedPrompt}
 			this.settings.promptsPath,
 		);
 		if (promptsFile && promptsFile instanceof TFile) {
-			await this.app.vault.modify(promptsFile, updatedContent);
+			await this.app.vault.modify(promptsFile as TFile, updatedContent);
 		} else {
 			new Notice("Could not find prompts file to update!");
 			return;
@@ -261,7 +240,7 @@ ${uncheckedPrompt}
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
+class PromptSettingTab extends PluginSettingTab {
 	plugin: PromptHeatmapPlugin;
 
 	constructor(app: App, plugin: PromptHeatmapPlugin) {
