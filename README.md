@@ -1,164 +1,147 @@
 # Prompt Heatmap
 
-An Obsidian plugin that randomly selects writing prompts from your collection and creates new notes for you to work on, while tracking which prompts you've used.
+A simple Obsidian plugin that randomly selects writing prompts from a checklist and creates daily prompt notes. Designed to work seamlessly with the [Heatmap Tracker](https://github.com/obsidianmd/obsidian-releases) plugin for visualizing your writing progress.
 
 ## Features
 
-- **Random Prompt Selection**: Automatically selects an unused prompt from your `Prompts.md` file
-- **Automatic Note Creation**: Creates a new note with the selected prompt ready for writing
-- **Progress Tracking**: Marks used prompts as completed so you don't repeat them
-- **Easy Access**: One-click access via ribbon icon in the left sidebar
-- **Smart Filtering**: Only selects from unchecked prompts (ignores completed ones)
+- **Random Prompt Selection**: Automatically picks an unchecked prompt from your prompts file
+- **Daily Note Creation**: Creates timestamped notes for each day you use a prompt
+- **Progress Tracking**: Tracks how many prompts you've answered each day
+- **Heatmap Integration**: Works with Heatmap Tracker to visualize your writing consistency
 
 ## Installation
 
-### Manual Installation
-
-1. Download the latest release from the [releases page](https://github.com/yourusername/Prompt-Heatmap/releases)
-2. Extract the files to your vault's `.obsidian/plugins/Prompt-Heatmap/` folder
-3. Enable the plugin in **Settings → Community plugins**
-
-### Development Installation
-
-1. Clone this repository to your vault's `.obsidian/plugins/` folder
-2. Run `npm install` to install dependencies
-3. Run `npm run build` to compile the plugin
-4. Enable the plugin in **Settings → Community plugins**
+1. Install the plugin from the Community Plugins browser in Obsidian
+2. Enable the plugin in **Settings → Community plugins**
+3. Install the [Heatmap Tracker](https://github.com/obsidianmd/obsidian-releases) plugin for visualization
 
 ## Setup
 
 ### 1. Create Your Prompts File
 
-Create a file called `Prompts.md` in a `Prompts` folder in your vault root:
+Create a markdown file with your writing prompts in checklist format:
 
 ```markdown
-Prompts/
-└── Prompts.md
+# Writing Prompts
+
+- [ ] Write about your childhood home
+- [ ] Describe your favorite meal in detail
+- [ ] Tell a story about a time you got lost
+- [ ] Write about someone who changed your life
+- [ ] Describe your ideal day
+- [ ] Write about a place you've never been but want to visit
 ```
 
-### 2. Add Your Writing Prompts
+### 2. Configure the Plugin
 
-Add your prompts to `Prompts.md` using bullet points:
+Go to **Settings → Community plugins → Prompt Heatmap** and configure:
+
+- **Prompts Path**: Path to your prompts file (e.g., `Prompts/Writing Prompts.md`)
+- **Date Format**: Date format for generated files (e.g., `en-GB`, `en-US`)
+- **Destination Path**: Folder where daily prompt notes will be created (e.g., `Daily Prompts/`)
+- **Prompts Answered Frontmatter**: Frontmatter key for tracking answered prompts (default: `promptsAnswered`)
+
+### 3. Set Up Heatmap Tracker (Optional)
+
+To visualize your writing progress:
+
+1. Install the Heatmap Tracker plugin
+2. Configure it to track your destination folder
+3. Set the frontmatter key to match your "Prompts Answered Frontmatter" setting
+
+## Usage
+
+### Getting a Random Prompt
+
+- **Ribbon Icon**: Click the notepad icon in the left ribbon
+- **Command Palette**: Use `Ctrl/Cmd + P` and search for "Get Random Prompt"
+- **Command**: Use the "Get Random Prompt" command
+
+### How It Works
+
+1. **Prompt Selection**: The plugin randomly selects an unchecked prompt from your prompts file
+2. **Mark as Complete**: The selected prompt is automatically marked as `- [x]` in your prompts file
+3. **Create/Update Note**: 
+   - If no note exists for today, creates a new note with the prompt
+   - If a note already exists, appends the new prompt to it
+4. **Track Progress**: Updates the `promptsAnswered` count in the note's frontmatter
+
+### Generated Note Format
+
+New daily notes are created with this structure:
 
 ```markdown
-- Pick one location (e.g. _The Gate_, _The Wound_, _The Archaea_): What does it smell, sound, or feel like to stand there?
-- How do travelers describe their first sight of _The Megastructure_?
-- What danger lurks near _The Wound_, and how do locals protect themselves?
-- What legend explains the origin of _The Archaea_?
-```
-
-### 3. Use the Plugin
-
-1. Click the **notepad-text icon** in the left ribbon
-2. The plugin will:
-    - Select a random unchecked prompt
-    - Mark it as completed (`- [x]`) in your Prompts.md file
-    - Create a new note with the prompt
-    - Open the note for you to start writing
-
-## How It Works
-
-1. **Reads** your `Prompts/Prompts.md` file
-2. **Filters** for unchecked prompts (lines starting with `- ` but not `- [x]`)
-3. **Selects** a random prompt from the available ones
-4. **Marks** the selected prompt as completed in the original file
-5. **Creates** a new note with filename format: `Prompt - DD-MM-YYYY.md`
-6. **Opens** the new note automatically
-
-## File Structure
-
-```
-Your Vault/
-├── Prompts/
-│   └── Prompts.md          # Your writing prompts
-├── Prompt - 15-01-2024.md  # Generated prompt notes
-├── Prompt - 16-01-2024.md
-└── ...
-```
-
-## Generated Note Format
-
-Each generated note includes:
-
-```markdown
-# Writing Prompt
-
-- Your selected prompt here
-
+---
+promptsAnswered: 1
 ---
 
-_Generated on 15/01/2024_
-```
+# Writing Prompt
 
-## Development
+**Write about your childhood home**
 
-### Prerequisites
-
-- Node.js 18+
-- npm
-
-### Building
-
-```bash
-# Install dependencies
-npm install
-
-# Development build with file watching
-npm run dev
-
-# Production build
-npm run build
-```
-
-### Project Structure
+***
 
 ```
-src/
-├── main.ts           # Plugin entry point
-├── settings.ts       # Settings interface (if needed)
-└── ...
+
+When you add multiple prompts to the same day:
+
+```markdown
+---
+promptsAnswered: 3
+---
+
+# Writing Prompt
+
+**Write about your childhood home**
+
+***
+
+**Describe your favorite meal in detail**
+
+***
+
+**Tell a story about a time you got lost**
+
+***
+
 ```
+
+## Integration with Heatmap Tracker
+
+This plugin is designed to work with the Heatmap Tracker plugin for visualizing your writing consistency:
+
+1. **Automatic Tracking**: Each time you use a prompt, the `promptsAnswered` count increases
+2. **Heatmap Visualization**: Heatmap Tracker can display this data as a calendar heatmap
+3. **Progress Insights**: See patterns in your writing habits and consistency
+
+## Tips
+
+- **Keep Prompts Fresh**: Regularly add new prompts to your prompts file
+- **Use Descriptive Prompts**: Write prompts that inspire detailed responses
+- **Organize by Category**: Consider organizing prompts by theme or difficulty
+- **Review Progress**: Use the heatmap to identify your most productive writing times
 
 ## Troubleshooting
 
-### "Prompts.md file not found"
+### No Unchecked Prompts Found
+- Make sure your prompts file contains lines starting with `- [ ]`
+- Check that the prompts path in settings is correct
 
-- Make sure you have a `Prompts/Prompts.md` file in your vault root
-- Check the file path is exactly `Prompts/Prompts.md`
+### File Not Found Errors
+- Verify that your prompts file exists at the specified path
+- Ensure the destination folder path is correct
 
-### "No unchecked prompts found"
-
-- All your prompts are marked as completed (`- [x]`)
-- Add new prompts or uncheck some by changing `- [x]` back to `- `
-
-### Plugin not working
-
-- Make sure the plugin is enabled in **Settings → Community plugins**
-- Check the console (Ctrl+Shift+I) for error messages
-- Try reloading the plugin
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Frontmatter Issues
+- Make sure your daily notes have proper YAML frontmatter
+- Check that the frontmatter key matches your settings
 
 ## Support
 
-If you encounter any issues or have feature requests, please [open an issue](https://github.com/yourusername/Prompt-Heatmap/issues) on GitHub.
+For issues, feature requests, or questions:
+- Check the [GitHub Issues](https://github.com/your-username/prompt-heatmap/issues) page
+- Review the plugin settings and file paths
+- Ensure you're using the latest version of the plugin
 
-## Changelog
+## License
 
-### Version 1.0.0
-
-- Initial release
-- Random prompt selection
-- Automatic note creation
-- Progress tracking
-- Ribbon icon integration
+This plugin is released under the MIT License.
